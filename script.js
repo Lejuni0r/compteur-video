@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorSelect = document.getElementById('bg-color');
     const textColorInput = document.getElementById('text-color');
     const visualEffectSelect = document.getElementById('visual-effect');
+    const exportFormatSelect = document.getElementById('export-format'); // <-- Nouveau
     const filenameInput = document.getElementById('filename');
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
@@ -267,7 +268,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 useDirectToDisk = true;
             } catch (e) { 
                 if (e.name === 'AbortError') return; 
-                console.warn("Passage en mémoire vive.");
             }
         }
 
@@ -275,59 +275,47 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
-        progressText.innerText = "⏳ Analyse du matériel pour la transparence...";
+        progressText.innerText = "⏳ Initialisation du rendu HD...";
         progressText.style.color = "#10b981"; 
 
         try {
+            if (!window.VideoEncoder || !window.WebMMuxer) {
+                throw new Error("Les outils vidéo ne sont pas chargés.");
+            }
+
             const sequence = parseSequence();
             if (sequence.length < 2) throw new Error("Séquence invalide. Il faut au moins 2 valeurs.");
 
+            const formatChoice = exportFormatSelect.value;
+            let forceGreen = (formatChoice === 'green');
+            let useAlpha = !forceGreen;
+
             let codecConfig = {
-                codec: 'vp09.00.41.08',
+                codec: formatChoice === 'vp9-alpha' ? 'vp09.00.41.08' : 'vp8',
                 width: 1920,
                 height: 1080,
                 framerate: 30,
-                bitrate: 30_000_000, 
-                alpha: 'keep'
+                bitrate: 30_000_000
             };
 
-            let useAlpha = false;
-            let forceGreen = false;
-
-            // --- LE SECRET POUR FORCER LA TRANSPARENCE PARTOUT ---
-            try {
-                // 1. On tente l'encodage classique (Carte Graphique)
-                let support = await VideoEncoder.isConfigSupported(codecConfig);
-                if (support.supported) {
-                    useAlpha = true;
-                } else {
-                    // 2. Si la carte graphique refuse, on force le Processeur (CPU)
-                    codecConfig.hardwareAcceleration = 'prefer-software';
-                    support = await VideoEncoder.isConfigSupported(codecConfig);
-                    
-                    if (support.supported) {
-                        useAlpha = true;
-                        console.log("Transparence sauvée grâce au forçage CPU !");
-                    } else {
-                        // 3. Vraiment en dernier recours, on tente le VP8 logiciel
-                        codecConfig.codec = 'vp8';
+            if (useAlpha) {
+                codecConfig.alpha = 'keep';
+                try {
+                    let support = await VideoEncoder.isConfigSupported(codecConfig);
+                    if (!support.supported) {
+                        codecConfig.hardwareAcceleration = 'prefer-software';
                         support = await VideoEncoder.isConfigSupported(codecConfig);
-                        if (support.supported) useAlpha = true;
+                        if (!support.supported) {
+                            throw new Error("Transparence non supportée");
+                        }
                     }
+                } catch (e) {
+                    console.warn("Transparence échouée, passage en Fond Vert.", e);
+                    delete codecConfig.alpha;
+                    delete codecConfig.hardwareAcceleration;
+                    forceGreen = true;
+                    useAlpha = false;
                 }
-            } catch (e) {
-                console.warn("Test codec échoué :", e);
-            }
-
-            // Si ça bloque VRAIMENT de partout (très rare désormais)
-            if (!useAlpha && bgColorSelect.value === 'transparent') {
-                progressText.innerText = "⚠️ Transparence impossible, passage en Fond Vert...";
-                delete codecConfig.alpha;
-                delete codecConfig.hardwareAcceleration; // Reset sécurité
-                forceGreen = true;
-            } else if (!useAlpha) {
-                delete codecConfig.alpha;
-                delete codecConfig.hardwareAcceleration;
             }
 
             let muxerTarget = useDirectToDisk 
@@ -336,11 +324,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const muxer = new WebMMuxer.Muxer({
                 target: muxerTarget,
-                video: { codec: codecConfig.codec === 'vp8' ? 'V_VP8' : 'V_VP9', width: 1920, height: 1080, frameRate: 30, alpha: useAlpha }
+                video: { 
+                    codec: codecConfig.codec.startsWith('vp09') ? 'V_VP9' : 'V_VP8', 
+                    width: 1920, 
+                    height: 1080, 
+                    frameRate: 30, 
+                    alpha: useAlpha 
+                }
             });
 
             let encoderError = null;
-
             const videoEncoder = new VideoEncoder({
                 output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
                 error: e => {
@@ -358,8 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let currentGlobalFrame = 0;
             const mode = dataTypeSelect.value;
             const easing = easingTypeSelect.value;
-
-            progressText.innerText = "⏳ Lancement du rendu HD...";
 
             for (let s = 0; s < sequence.length - 1; s++) {
                 const startVal = sequence[s];
@@ -417,8 +408,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             progressText.innerText = forceGreen 
-                ? `✅ Export HD réussi (Fond Vert activé) !` 
-                : `✅ Vidéo HD transparente exportée avec succès !`;
+                ? `✅ Export réussi (Fond Vert activé) !` 
+                : `✅ Vidéo transparente exportée avec succès !`;
 
         } catch (err) {
             console.error(err);
