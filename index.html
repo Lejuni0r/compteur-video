@@ -9,7 +9,6 @@
 </head>
 <body>
     <div id="controls" class="panel">
-        
         <h2>⚙️ Paramètres</h2>
         
         <div class="input-group">
@@ -51,25 +50,36 @@
             <div style="flex: 2;">
                 <label>Effet visuel</label>
                 <select id="visual-effect">
-                    <option value="shadow">Ombre douce</option>
-                    <option value="arch">Courbure (Pont)</option>
-                    <option value="arch-inv">Courbure (Sourire)</option>
-                    <option value="skew">Inclinaison</option>
-                    <option value="neon">Lueur Néon</option>
+                    <option value="shadow">Ombre douce (Standard)</option>
+                    <option value="arch">Courbure en Arche (Pont)</option>
+                    <option value="arch-inv">Courbure Inversée (Sourire)</option>
+                    <option value="skew">Inclinaison (Vitesse)</option>
+                    <option value="neon">Lueur Néon (Glow)</option>
                 </select>
             </div>
         </div>
 
         <div class="input-group">
-            <label id="duration-label">Durée entre chaque étape (secondes)</label>
+            <label>Style de défilement</label>
+            <select id="easing-type">
+                <option value="easeOut">Amorti (Ralentit à la fin)</option>
+                <option value="linear">Linéaire (Vitesse constante)</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
+            <label id="duration-label">Durée entre chaque étape (en secondes)</label>
             <input type="number" id="duration" value="2" step="any" min="0.01">
+            <small class="hint-text" style="color: #60a5fa; font-weight: 600;">
+                💡 0.5 = Demi-seconde | 60 = 1 min
+            </small>
         </div>
         
         <div class="input-group">
             <label>Fond d'écran (Aperçu)</label>
             <select id="bg-color">
                 <option value="#1e1e1e">Gris Foncé</option>
-                <option value="transparent">Transparent (Par défaut)</option>
+                <option value="transparent">Transparent (Export par défaut)</option>
             </select>
         </div>
 
@@ -78,19 +88,19 @@
         <div class="input-group">
             <label>Format & Compatibilité</label>
             <select id="export-format">
-                <option value="vp9-alpha">WebM VP9 Transparent (PC Récents)</option>
+                <option value="vp9-alpha">WebM VP9 Transparent (Qualité Max - PC)</option>
                 <option value="vp8-alpha">WebM VP8 Transparent (Haute Compatibilité)</option>
-                <option value="green">Fond Vert Universel (Spécial Mobile)</option>
+                <option value="green">Fond Vert Universel (Spécial Smartphone)</option>
             </select>
         </div>
 
         <div class="input-group">
-            <label>Nom du fichier (Optionnel)</label>
+            <label>Nom du fichier d'export (Optionnel)</label>
             <input type="text" id="filename" placeholder="Ex: compteur_video">
         </div>
         
         <button id="start-btn">▶ Aperçu</button>
-        <button id="record-btn">🚀 EXPORTER LA VIDÉO</button>
+        <button id="record-btn">🚀 EXPORTER LA VIDÉO (.webm)</button>
         <p id="progress-text" style="display:none; text-align:center; color:#10b981; font-weight:bold; margin-top:10px;"></p>
     </div>
 
