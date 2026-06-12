@@ -18,7 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorSelect = document.getElementById('bg-color');
     const textColorInput = document.getElementById('text-color');
     const visualEffectSelect = document.getElementById('visual-effect');
-    const filenameInput = document.getElementById('filename'); // <-- NOUVEAU
+    const filenameInput = document.getElementById('filename');
+    const chromaColorInput = document.getElementById('chroma-color');
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
     const progressText = document.getElementById('progress-text');
@@ -32,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.style.backgroundColor = e.target.value;
         initCanvas();
     });
+    chromaColorInput.addEventListener('input', initCanvas);
 
     dataTypeSelect.addEventListener('change', (e) => {
         if (e.target.value === 'dates') {
@@ -90,12 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.restore();
     }
 
-    function drawOnCanvas(text1, text2 = null, forceGreenScreen = false) {
+    function drawOnCanvas(text1, text2 = null, exportBgColor = null) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        if (forceGreenScreen) {
-            ctx.fillStyle = '#00FF00';
+        if (exportBgColor) {
+            ctx.fillStyle = exportBgColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else if (bgColorSelect.value !== 'transparent') {
             ctx.fillStyle = bgColorSelect.value;
@@ -157,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
 
-    function formatAndDraw(val, mode, forceGreenScreen = false) {
+    function formatAndDraw(val, mode, exportBgColor = null) {
         if (mode === 'dates') {
             const currentDate = new Date(val);
             const selectedFormat = dateFormatSelect.value;
@@ -169,21 +171,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedFormat === 'fr-time-below') {
                 const dateStr = currentDate.toLocaleDateString('fr-FR', dateOpts);
                 const timeStr = currentDate.toLocaleTimeString('fr-FR', timeOpts);
-                drawOnCanvas(dateStr, timeStr, forceGreenScreen);
+                drawOnCanvas(dateStr, timeStr, exportBgColor);
             } 
             else if (selectedFormat === 'fr-inline') {
                 const dateStr = currentDate.toLocaleDateString('fr-FR', dateOpts);
                 const timeStr = currentDate.toLocaleTimeString('fr-FR', timeOpts);
-                drawOnCanvas(dateStr + " à " + timeStr, null, forceGreenScreen);
+                drawOnCanvas(dateStr + " à " + timeStr, null, exportBgColor);
             }
             else if (selectedFormat === 'fr-only') {
-                drawOnCanvas(currentDate.toLocaleDateString('fr-FR', dateOpts), null, forceGreenScreen);
+                drawOnCanvas(currentDate.toLocaleDateString('fr-FR', dateOpts), null, exportBgColor);
             } 
             else if (selectedFormat === 'en-long') {
-                drawOnCanvas(currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), null, forceGreenScreen);
+                drawOnCanvas(currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), null, exportBgColor);
             }
         } else {
-            drawOnCanvas(numberFormatter.format(val), null, forceGreenScreen);
+            drawOnCanvas(numberFormatter.format(val), null, exportBgColor);
         }
     }
 
@@ -249,12 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
     recordBtn.addEventListener('click', async () => {
         if (isProcessing) return;
 
-        // --- GESTION DU NOM DE FICHIER ---
         let customName = filenameInput.value.trim();
         if (customName === "") {
             customName = `compteur_HD_${Date.now()}`;
         }
-        // Si l'utilisateur a déjà écrit ".webm" à la fin, on l'enlève pour éviter les doublons
         if (customName.toLowerCase().endsWith('.webm')) {
             customName = customName.slice(0, -5);
         }
@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if ('showSaveFilePicker' in window) {
             try {
                 const fileHandle = await window.showSaveFilePicker({
-                    suggestedName: finalFilename, // Utilisation du nom personnalisé ici
+                    suggestedName: finalFilename,
                     types: [{ description: 'Fichier Vidéo WebM', accept: { 'video/webm': ['.webm'] } }]
                 });
                 fileStream = await fileHandle.createWritable();
@@ -311,11 +311,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 useAlpha = support.supported;
             }
 
-            let forceGreen = false;
+            let exportBgColor = null;
             if (!useAlpha && bgColorSelect.value === 'transparent') {
-                progressText.innerText = "⚠️ Transparence HD non supportée par le PC, passage en Fond Vert...";
+                progressText.innerText = "⚠️ Transparence non supportée par le PC, passage sur la couleur de secours...";
                 delete codecConfig.alpha; 
-                forceGreen = true;
+                exportBgColor = chromaColorInput.value;
             } else if (!useAlpha) {
                 delete codecConfig.alpha;
             }
@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let curveProgress = easing === 'linear' ? progress : (progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress));
                     const currentVal = Math.floor(curveProgress * (endVal - startVal) + startVal);
 
-                    formatAndDraw(currentVal, mode, forceGreen);
+                    formatAndDraw(currentVal, mode, exportBgColor);
 
                     const timestampMicro = Math.round((currentGlobalFrame * 1000000) / fps);
                     
@@ -399,13 +399,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = finalFilename; // Utilisation du nom personnalisé ici aussi
+                a.download = finalFilename; 
                 a.click();
                 URL.revokeObjectURL(url);
             }
 
-            progressText.innerText = forceGreen 
-                ? `✅ Export HD réussi (Fond Vert activé) !` 
+            progressText.innerText = exportBgColor 
+                ? `✅ Export HD réussi (Fond couleur activé) !` 
                 : `✅ Vidéo HD transparente exportée !`;
 
         } catch (err) {
