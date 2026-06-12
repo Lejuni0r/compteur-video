@@ -290,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
             let forceGreen = (formatChoice === 'green');
             let useAlpha = !forceGreen;
 
-            // ON FORCE LES PARAMÈTRES EXACTEMENT SELON TON CHOIX
             let codecConfig = {
                 codec: formatChoice === 'vp9-alpha' ? 'vp09.00.41.08' : 'vp8',
                 width: 1920,
@@ -301,8 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (useAlpha) {
                 codecConfig.alpha = 'keep';
-                // On force le processeur (logiciel) car c'est lui qui débloque la transparence à coup sûr
-                codecConfig.hardwareAcceleration = 'prefer-software'; 
+                // CORRECTION ICI : On utilise l'accélération matérielle pour éviter le bug YUV (fond vert)
+                codecConfig.hardwareAcceleration = 'prefer-hardware'; 
             }
 
             let muxerTarget = useDirectToDisk 
@@ -329,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // S'il plante ici, c'est que le navigateur refuse VRAIMENT la transparence.
             videoEncoder.configure(codecConfig);
 
             const fps = 30;
