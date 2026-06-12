@@ -23,9 +23,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
     const progressText = document.getElementById('progress-text');
+    const alphaWarning = document.getElementById('alpha-warning');
 
     const numberFormatter = new Intl.NumberFormat('fr-FR');
     let isProcessing = false;
+
+    // --- Détection support alpha (mobile) ---
+    async function checkAlphaSupport() {
+        if (!window.VideoEncoder) return false;
+        try {
+            const vp9Support = await VideoEncoder.isConfigSupported({
+                codec: 'vp09.00.41.08',
+                width: 1920, height: 1080,
+                framerate: 30,
+                alpha: 'keep',
+                hardwareAcceleration: 'prefer-software'
+            });
+            return vp9Support.supported === true;
+        } catch(e) {
+            return false;
+        }
+    }
+
+    async function updateAlphaWarning() {
+        const formatChoice = exportFormatSelect.value;
+        if (formatChoice === 'green') {
+            alphaWarning.style.display = 'none';
+            return;
+        }
+        const supported = await checkAlphaSupport();
+        if (!supported) {
+            alphaWarning.style.display = 'block';
+            alphaWarning.innerText = '⚠️ Votre appareil ne supporte pas la transparence vidéo. Utilisez "Fond Vert" pour smartphone.';
+        } else {
+            alphaWarning.style.display = 'none';
+        }
+    }
+
+    exportFormatSelect.addEventListener('change', updateAlphaWarning);
+    updateAlphaWarning();
 
     textColorInput.addEventListener('input', initCanvas);
     visualEffectSelect.addEventListener('change', initCanvas);
@@ -275,7 +311,6 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
-        progressText.innerText = "⏳ Initialisation du rendu HD...";
         progressText.style.color = "#10b981"; 
 
         try {
@@ -287,20 +322,44 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sequence.length < 2) throw new Error("Séquence invalide. Il faut au moins 2 valeurs.");
 
             const formatChoice = exportFormatSelect.value;
-            let forceGreen = (formatChoice === 'green');
-            let useAlpha = !forceGreen;
+            
+            // === CORRECTION BUG : logique claire des 3 modes ===
+            const forceGreen = (formatChoice === 'green');
+            const useAlpha = (formatChoice === 'vp9-alpha' || formatChoice === 'vp8-alpha');
+            const isVP9 = (formatChoice === 'vp9-alpha');
 
+            progressText.innerText = forceGreen 
+                ? "⏳ Initialisation export Fond Vert..." 
+                : `⏳ Initialisation export ${isVP9 ? 'VP9' : 'VP8'} Transparent...`;
+
+            // Codec : VP9 ou VP8 selon le choix, sinon VP8 simple pour fond vert
             let codecConfig = {
-                codec: formatChoice === 'vp9-alpha' ? 'vp09.00.41.08' : 'vp8',
+                codec: isVP9 ? 'vp09.00.41.08' : 'vp8',
                 width: 1920,
                 height: 1080,
                 framerate: 30,
-                bitrate: 15_000_000 // On divise par 2 pour alléger le processeur (largement suffisant pour un texte)
+                bitrate: 30_000_000
             };
 
             if (useAlpha) {
                 codecConfig.alpha = 'keep';
-                // On supprime totalement hardwareAcceleration : on laisse le navigateur gérer ce qu'il supporte le mieux sans crasher.
+                codecConfig.hardwareAcceleration = 'prefer-software';
+            }
+
+            // Vérification support avant de lancer
+            if (useAlpha) {
+                let supported = false;
+                try {
+                    const check = await VideoEncoder.isConfigSupported(codecConfig);
+                    supported = check.supported === true;
+                } catch(e) { supported = false; }
+
+                if (!supported) {
+                    throw new Error(
+                        `Votre appareil/navigateur ne supporte pas la transparence ${isVP9 ? 'VP9' : 'VP8'}. ` +
+                        `Utilisez l'option "Fond Vert" à la place.`
+                    );
+                }
             }
 
             let muxerTarget = useDirectToDisk 
@@ -310,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const muxer = new WebMMuxer.Muxer({
                 target: muxerTarget,
                 video: { 
-                    codec: codecConfig.codec.startsWith('vp09') ? 'V_VP9' : 'V_VP8', 
+                    codec: isVP9 ? 'V_VP9' : 'V_VP8', 
                     width: 1920, 
                     height: 1080, 
                     frameRate: 30, 
@@ -342,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endVal = sequence[s+1];
 
                 for (let i = 0; i <= framesPerStep; i++) {
-                    if (encoderError) throw new Error("L'encodeur vidéo a crashé.");
+                    if (encoderError) throw new Error("L'encodeur vidéo a crashé : " + encoderError.message);
                     if (i === framesPerStep && s < sequence.length - 2) continue;
 
                     const progress = framesPerStep === 0 ? 1 : i / framesPerStep;
@@ -394,12 +453,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             progressText.innerText = forceGreen 
                 ? `✅ Export réussi (Fond Vert Intentionnel) !` 
-                : `✅ Vidéo transparente exportée avec succès !`;
+                : `✅ Vidéo ${isVP9 ? 'VP9' : 'VP8'} transparente exportée avec succès !`;
 
         } catch (err) {
             console.error(err);
             progressText.innerText = `❌ Erreur : ${err.message}`;
             progressText.style.color = "red";
+            if (useDirectToDisk && fileStream) {
+                try { await fileStream.close(); } catch(e) {}
+            }
         } finally {
             startBtn.disabled = false;
             recordBtn.disabled = false;
