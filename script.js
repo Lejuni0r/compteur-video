@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorSelect = document.getElementById('bg-color');
     const textColorInput = document.getElementById('text-color');
     const visualEffectSelect = document.getElementById('visual-effect');
-    const filenameInput = document.getElementById('filename'); // <-- NOUVEAU
+    const filenameInput = document.getElementById('filename');
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
     const progressText = document.getElementById('progress-text');
@@ -249,15 +249,9 @@ document.addEventListener('DOMContentLoaded', () => {
     recordBtn.addEventListener('click', async () => {
         if (isProcessing) return;
 
-        // --- GESTION DU NOM DE FICHIER ---
         let customName = filenameInput.value.trim();
-        if (customName === "") {
-            customName = `compteur_HD_${Date.now()}`;
-        }
-        // Si l'utilisateur a déjà écrit ".webm" à la fin, on l'enlève pour éviter les doublons
-        if (customName.toLowerCase().endsWith('.webm')) {
-            customName = customName.slice(0, -5);
-        }
+        if (customName === "") customName = `compteur_HD_${Date.now()}`;
+        if (customName.toLowerCase().endsWith('.webm')) customName = customName.slice(0, -5);
         const finalFilename = `${customName}.webm`;
 
         let fileStream = null;
@@ -266,14 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if ('showSaveFilePicker' in window) {
             try {
                 const fileHandle = await window.showSaveFilePicker({
-                    suggestedName: finalFilename, // Utilisation du nom personnalisé ici
+                    suggestedName: finalFilename,
                     types: [{ description: 'Fichier Vidéo WebM', accept: { 'video/webm': ['.webm'] } }]
                 });
                 fileStream = await fileHandle.createWritable();
                 useDirectToDisk = true;
             } catch (e) { 
                 if (e.name === 'AbortError') return; 
-                console.warn("Échec de la sauvegarde directe, passage en mémoire vive.");
+                console.warn("Passage en mémoire vive.");
             }
         }
 
@@ -281,14 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
-        progressText.innerText = "⏳ Initialisation du rendu HD...";
+        progressText.innerText = "⏳ Analyse du matériel pour la transparence...";
         progressText.style.color = "#10b981"; 
 
         try {
-            if (!window.VideoEncoder || !window.WebMMuxer) {
-                throw new Error("Les outils vidéo ne sont pas chargés. Vérifiez votre connexion.");
-            }
-
             const sequence = parseSequence();
             if (sequence.length < 2) throw new Error("Séquence invalide. Il faut au moins 2 valeurs.");
 
@@ -302,22 +292,42 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             let useAlpha = false;
+            let forceGreen = false;
+
+            // --- LE SECRET POUR FORCER LA TRANSPARENCE PARTOUT ---
             try {
-                const support = await VideoEncoder.isConfigSupported(codecConfig);
-                useAlpha = support.supported; 
+                // 1. On tente l'encodage classique (Carte Graphique)
+                let support = await VideoEncoder.isConfigSupported(codecConfig);
+                if (support.supported) {
+                    useAlpha = true;
+                } else {
+                    // 2. Si la carte graphique refuse, on force le Processeur (CPU)
+                    codecConfig.hardwareAcceleration = 'prefer-software';
+                    support = await VideoEncoder.isConfigSupported(codecConfig);
+                    
+                    if (support.supported) {
+                        useAlpha = true;
+                        console.log("Transparence sauvée grâce au forçage CPU !");
+                    } else {
+                        // 3. Vraiment en dernier recours, on tente le VP8 logiciel
+                        codecConfig.codec = 'vp8';
+                        support = await VideoEncoder.isConfigSupported(codecConfig);
+                        if (support.supported) useAlpha = true;
+                    }
+                }
             } catch (e) {
-                codecConfig.codec = 'vp8';
-                const support = await VideoEncoder.isConfigSupported(codecConfig);
-                useAlpha = support.supported;
+                console.warn("Test codec échoué :", e);
             }
 
-            let forceGreen = false;
+            // Si ça bloque VRAIMENT de partout (très rare désormais)
             if (!useAlpha && bgColorSelect.value === 'transparent') {
-                progressText.innerText = "⚠️ Transparence HD non supportée par le PC, passage en Fond Vert...";
-                delete codecConfig.alpha; 
+                progressText.innerText = "⚠️ Transparence impossible, passage en Fond Vert...";
+                delete codecConfig.alpha;
+                delete codecConfig.hardwareAcceleration; // Reset sécurité
                 forceGreen = true;
             } else if (!useAlpha) {
                 delete codecConfig.alpha;
+                delete codecConfig.hardwareAcceleration;
             }
 
             let muxerTarget = useDirectToDisk 
@@ -348,6 +358,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let currentGlobalFrame = 0;
             const mode = dataTypeSelect.value;
             const easing = easingTypeSelect.value;
+
+            progressText.innerText = "⏳ Lancement du rendu HD...";
 
             for (let s = 0; s < sequence.length - 1; s++) {
                 const startVal = sequence[s];
@@ -399,14 +411,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = finalFilename; // Utilisation du nom personnalisé ici aussi
+                a.download = finalFilename; 
                 a.click();
                 URL.revokeObjectURL(url);
             }
 
             progressText.innerText = forceGreen 
                 ? `✅ Export HD réussi (Fond Vert activé) !` 
-                : `✅ Vidéo HD transparente exportée !`;
+                : `✅ Vidéo HD transparente exportée avec succès !`;
 
         } catch (err) {
             console.error(err);
