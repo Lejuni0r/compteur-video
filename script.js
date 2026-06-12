@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
-        progressText.innerText = "⏳ Initialisation du rendu HD (Transparence Forcée)...";
+        progressText.innerText = "⏳ Initialisation du rendu HD...";
         progressText.style.color = "#10b981"; 
 
         try {
@@ -295,13 +295,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 width: 1920,
                 height: 1080,
                 framerate: 30,
-                bitrate: 30_000_000
+                bitrate: 15_000_000 // On divise par 2 pour alléger le processeur (largement suffisant pour un texte)
             };
 
             if (useAlpha) {
                 codecConfig.alpha = 'keep';
-                // CORRECTION ICI : On utilise l'accélération matérielle pour éviter le bug YUV (fond vert)
-                codecConfig.hardwareAcceleration = 'prefer-hardware'; 
+                // On supprime totalement hardwareAcceleration : on laisse le navigateur gérer ce qu'il supporte le mieux sans crasher.
             }
 
             let muxerTarget = useDirectToDisk 
