@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = 1920;
     canvas.height = 1080;
 
+    // Récupération de TOUS les éléments du HTML (C'est ici que l'erreur "null" se produisait si l'HTML n'était pas à jour)
     const sequenceInput = document.getElementById('sequence');
     const sequenceHint = document.getElementById('sequence-hint');
     const dataTypeSelect = document.getElementById('data-type');
@@ -18,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorSelect = document.getElementById('bg-color');
     const textColorInput = document.getElementById('text-color');
     const visualEffectSelect = document.getElementById('visual-effect');
-    const exportFormatSelect = document.getElementById('export-format'); // <-- Nouveau
+    const exportFormatSelect = document.getElementById('export-format');
     const filenameInput = document.getElementById('filename');
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
@@ -298,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bitrate: 30_000_000
             };
 
+            // LE CODE POUR SAUVER LA TRANSPARENCE (FORÇAGE PROCESSEUR)
             if (useAlpha) {
                 codecConfig.alpha = 'keep';
                 try {
