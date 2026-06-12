@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = 1920;
     canvas.height = 1080;
 
-    // Récupération de TOUS les éléments du HTML (C'est ici que l'erreur "null" se produisait si l'HTML n'était pas à jour)
     const sequenceInput = document.getElementById('sequence');
     const sequenceHint = document.getElementById('sequence-hint');
     const dataTypeSelect = document.getElementById('data-type');
@@ -276,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
-        progressText.innerText = "⏳ Initialisation du rendu HD...";
+        progressText.innerText = "⏳ Initialisation du rendu HD (Transparence Forcée)...";
         progressText.style.color = "#10b981"; 
 
         try {
@@ -291,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let forceGreen = (formatChoice === 'green');
             let useAlpha = !forceGreen;
 
+            // ON FORCE LES PARAMÈTRES EXACTEMENT SELON TON CHOIX
             let codecConfig = {
                 codec: formatChoice === 'vp9-alpha' ? 'vp09.00.41.08' : 'vp8',
                 width: 1920,
@@ -299,25 +299,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 bitrate: 30_000_000
             };
 
-            // LE CODE POUR SAUVER LA TRANSPARENCE (FORÇAGE PROCESSEUR)
             if (useAlpha) {
                 codecConfig.alpha = 'keep';
-                try {
-                    let support = await VideoEncoder.isConfigSupported(codecConfig);
-                    if (!support.supported) {
-                        codecConfig.hardwareAcceleration = 'prefer-software';
-                        support = await VideoEncoder.isConfigSupported(codecConfig);
-                        if (!support.supported) {
-                            throw new Error("Transparence non supportée");
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Transparence échouée, passage en Fond Vert.", e);
-                    delete codecConfig.alpha;
-                    delete codecConfig.hardwareAcceleration;
-                    forceGreen = true;
-                    useAlpha = false;
-                }
+                // On force le processeur (logiciel) car c'est lui qui débloque la transparence à coup sûr
+                codecConfig.hardwareAcceleration = 'prefer-software'; 
             }
 
             let muxerTarget = useDirectToDisk 
@@ -344,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            // S'il plante ici, c'est que le navigateur refuse VRAIMENT la transparence.
             videoEncoder.configure(codecConfig);
 
             const fps = 30;
@@ -359,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endVal = sequence[s+1];
 
                 for (let i = 0; i <= framesPerStep; i++) {
-                    if (encoderError) throw new Error("L'encodage vidéo a crashé.");
+                    if (encoderError) throw new Error("L'encodeur vidéo a crashé.");
                     if (i === framesPerStep && s < sequence.length - 2) continue;
 
                     const progress = framesPerStep === 0 ? 1 : i / framesPerStep;
@@ -410,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             progressText.innerText = forceGreen 
-                ? `✅ Export réussi (Fond Vert activé) !` 
+                ? `✅ Export réussi (Fond Vert Intentionnel) !` 
                 : `✅ Vidéo transparente exportée avec succès !`;
 
         } catch (err) {
