@@ -1,104 +1,425 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compteur Dynamique Pro</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/webm-muxer@5.0.2/build/webm-muxer.js"></script>
-</head>
-<body>
-    <div id="controls" class="panel">
-        <h2>⚙️ Paramètres</h2>
+document.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.getElementById('counter-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = 1920;
+    canvas.height = 1080;
+
+    const sequenceInput = document.getElementById('sequence');
+    const sequenceHint = document.getElementById('sequence-hint');
+    const dataTypeSelect = document.getElementById('data-type');
+    const formatGroup = document.getElementById('format-group');
+    const dateFormatSelect = document.getElementById('date-format');
+    const secondsGroup = document.getElementById('seconds-group');
+    const showSecondsCheckbox = document.getElementById('show-seconds');
+    const easingTypeSelect = document.getElementById('easing-type');
+    const durationInput = document.getElementById('duration');
+    const durationLabel = document.getElementById('duration-label');
+    const bgColorSelect = document.getElementById('bg-color');
+    const textColorInput = document.getElementById('text-color');
+    const visualEffectSelect = document.getElementById('visual-effect');
+    const exportFormatSelect = document.getElementById('export-format'); // <-- Nouveau
+    const filenameInput = document.getElementById('filename');
+    const startBtn = document.getElementById('start-btn');
+    const recordBtn = document.getElementById('record-btn');
+    const progressText = document.getElementById('progress-text');
+
+    const numberFormatter = new Intl.NumberFormat('fr-FR');
+    let isProcessing = false;
+
+    textColorInput.addEventListener('input', initCanvas);
+    visualEffectSelect.addEventListener('change', initCanvas);
+    bgColorSelect.addEventListener('change', (e) => {
+        document.body.style.backgroundColor = e.target.value;
+        initCanvas();
+    });
+
+    dataTypeSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'dates') {
+            sequenceInput.value = "2024-01-01 08:00, 2024-12-31 23:59";
+            sequenceHint.innerText = "Format attendu : AAAA-MM-JJ HH:MM";
+            formatGroup.style.display = 'flex';
+            durationLabel.innerText = "Durée du défilement (en secondes)";
+        } else {
+            sequenceInput.value = "0, 200000";
+            sequenceHint.innerText = "Ex: 0, 150, 300";
+            formatGroup.style.display = 'none';
+            durationLabel.innerText = "Durée entre chaque étape (en secondes)";
+        }
+        toggleSecondsVisibility();
+        initCanvas();
+    });
+
+    dateFormatSelect.addEventListener('change', toggleSecondsVisibility);
+    showSecondsCheckbox.addEventListener('change', initCanvas);
+
+    function toggleSecondsVisibility() {
+        if (dataTypeSelect.value === 'dates' && (dateFormatSelect.value === 'fr-time-below' || dateFormatSelect.value === 'fr-inline')) {
+            secondsGroup.style.display = 'flex';
+        } else {
+            secondsGroup.style.display = 'none';
+        }
+        initCanvas();
+    }
+
+    function drawArchedText(ctx, text, yOffset, radius, inverted = false) {
+        ctx.save();
+        const totalWidth = ctx.measureText(text).width;
+        const totalAngle = totalWidth / radius;
+
+        if (!inverted) {
+            ctx.translate(0, radius + yOffset);
+            ctx.rotate(-totalAngle / 2);
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const charAngle = ctx.measureText(char).width / radius;
+                ctx.rotate(charAngle / 2);
+                ctx.fillText(char, 0, -radius);
+                ctx.rotate(charAngle / 2);
+            }
+        } else {
+            ctx.translate(0, -radius + yOffset);
+            ctx.rotate(totalAngle / 2); 
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const charAngle = ctx.measureText(char).width / radius;
+                ctx.rotate(-charAngle / 2);
+                ctx.fillText(char, 0, radius); 
+                ctx.rotate(-charAngle / 2);
+            }
+        }
+        ctx.restore();
+    }
+
+    function drawOnCanvas(text1, text2 = null, forceGreenScreen = false) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        <div class="input-group">
-            <label>Que veux-tu animer ?</label>
-            <select id="data-type">
-                <option value="numbers">Nombres (ex: 0 à 200 000)</option>
-                <option value="dates">Dates & Heures</option>
-            </select>
-        </div>
+        if (forceGreenScreen) {
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        } else if (bgColorSelect.value !== 'transparent') {
+            ctx.fillStyle = bgColorSelect.value;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
-        <div class="input-group" id="format-group" style="display: none;">
-            <label>Affichage de la date</label>
-            <select id="date-format">
-                <option value="fr-time-below">Heure en dessous (JJ/MM/AAAA)</option>
-                <option value="fr-inline">Heure sur la même ligne</option>
-                <option value="fr-only">Date uniquement (Sans l'heure)</option>
-                <option value="en-long">Date en Anglais (21 January 2018)</option>
-            </select>
-        </div>
+        const effect = visualEffectSelect.value;
+        const color = textColorInput.value;
 
-        <div class="input-group checkbox-group" id="seconds-group" style="display: none;">
-            <label>
-                <input type="checkbox" id="show-seconds" checked> 
-                Afficher les secondes (ex: 15:30:45)
-            </label>
-        </div>
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
 
-        <div class="input-group">
-            <label>Départ et Arrivée (séparés par une virgule)</label>
-            <input type="text" id="sequence" value="0, 200000">
-            <small id="sequence-hint" class="hint-text">Ex: 0, 150, 300</small>
-        </div>
+        if (effect === 'shadow' || effect.includes('arch')) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 8;
+        } else if (effect === 'neon') {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 40;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        } else {
+            ctx.shadowColor = 'transparent';
+        }
 
-        <div class="input-group" style="flex-direction: row; justify-content: space-between; gap: 10px;">
-            <div style="flex: 1;">
-                <label>Couleur</label>
-                <input type="color" id="text-color" value="#ffffff" style="width: 100%; height: 38px; padding: 2px; cursor: pointer;">
-            </div>
-            <div style="flex: 2;">
-                <label>Effet visuel</label>
-                <select id="visual-effect">
-                    <option value="shadow">Ombre douce (Standard)</option>
-                    <option value="arch">Courbure en Arche (Pont)</option>
-                    <option value="arch-inv">Courbure Inversée (Sourire)</option>
-                    <option value="skew">Inclinaison (Vitesse)</option>
-                    <option value="neon">Lueur Néon (Glow)</option>
-                </select>
-            </div>
-        </div>
+        ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        <div class="input-group">
-            <label>Style de défilement</label>
-            <select id="easing-type">
-                <option value="easeOut">Amorti (Ralentit à la fin)</option>
-                <option value="linear">Linéaire (Vitesse constante)</option>
-            </select>
-        </div>
+        if (effect === 'skew') {
+            ctx.transform(1, 0, -0.25, 1, 0, 0); 
+        }
+
+        const archRadius = 800;
+
+        if (text2) {
+            ctx.font = '700 100px "Roboto Mono", monospace';
+            
+            if (effect === 'arch') drawArchedText(ctx, text1, -70, archRadius, false);
+            else if (effect === 'arch-inv') drawArchedText(ctx, text1, -70, archRadius, true);
+            else ctx.fillText(text1, 0, -70);
+            
+            ctx.font = '700 70px "Roboto Mono", monospace';
+            if (effect !== 'neon') ctx.globalAlpha = 0.85; 
+            
+            if (effect === 'arch') drawArchedText(ctx, text2, 70, archRadius - 140, false);
+            else if (effect === 'arch-inv') drawArchedText(ctx, text2, 70, archRadius + 140, true);
+            else ctx.fillText(text2, 0, 70);
+            
+            ctx.globalAlpha = 1.0;
+        } else {
+            ctx.font = '700 140px "Roboto Mono", monospace';
+            
+            if (effect === 'arch') drawArchedText(ctx, text1, 0, archRadius, false);
+            else if (effect === 'arch-inv') drawArchedText(ctx, text1, 0, archRadius, true);
+            else ctx.fillText(text1, 0, 0);
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    function formatAndDraw(val, mode, forceGreenScreen = false) {
+        if (mode === 'dates') {
+            const currentDate = new Date(val);
+            const selectedFormat = dateFormatSelect.value;
+            const hasSeconds = showSecondsCheckbox.checked;
+            
+            const timeOpts = hasSeconds ? { hour: '2-digit', minute: '2-digit', second: '2-digit' } : { hour: '2-digit', minute: '2-digit' };
+            const dateOpts = { day: '2-digit', month: '2-digit', year: 'numeric' };
+
+            if (selectedFormat === 'fr-time-below') {
+                const dateStr = currentDate.toLocaleDateString('fr-FR', dateOpts);
+                const timeStr = currentDate.toLocaleTimeString('fr-FR', timeOpts);
+                drawOnCanvas(dateStr, timeStr, forceGreenScreen);
+            } 
+            else if (selectedFormat === 'fr-inline') {
+                const dateStr = currentDate.toLocaleDateString('fr-FR', dateOpts);
+                const timeStr = currentDate.toLocaleTimeString('fr-FR', timeOpts);
+                drawOnCanvas(dateStr + " à " + timeStr, null, forceGreenScreen);
+            }
+            else if (selectedFormat === 'fr-only') {
+                drawOnCanvas(currentDate.toLocaleDateString('fr-FR', dateOpts), null, forceGreenScreen);
+            } 
+            else if (selectedFormat === 'en-long') {
+                drawOnCanvas(currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), null, forceGreenScreen);
+            }
+        } else {
+            drawOnCanvas(numberFormatter.format(val), null, forceGreenScreen);
+        }
+    }
+
+    function initCanvas() { 
+        if (dataTypeSelect.value === 'dates') {
+            const raw = sequenceInput.value.split(',')[0];
+            const time = new Date(raw ? raw.trim().replace(' ', 'T') : Date.now()).getTime();
+            formatAndDraw(isNaN(time) ? Date.now() : time, 'dates');
+        } else {
+            const raw = sequenceInput.value.split(',')[0];
+            const num = parseFloat(raw);
+            formatAndDraw(isNaN(num) ? 0 : num, 'numbers');
+        }
+    }
+    
+    document.fonts.ready.then(initCanvas);
+    sequenceInput.addEventListener('input', initCanvas);
+
+    function parseSequence() {
+        const rawItems = sequenceInput.value.split(',');
+        if (dataTypeSelect.value === 'dates') {
+            return rawItems.map(s => new Date(s.trim().replace(' ', 'T')).getTime()).filter(t => !isNaN(t));
+        } else {
+            return rawItems.map(n => parseFloat(n.trim())).filter(n => !isNaN(n));
+        }
+    }
+
+    startBtn.addEventListener('click', async () => {
+        if (isProcessing) return;
+        isProcessing = true;
         
-        <div class="input-group">
-            <label id="duration-label">Durée entre chaque étape (en secondes)</label>
-            <input type="number" id="duration" value="2" step="any" min="0.01">
-            <small class="hint-text" style="color: #60a5fa; font-weight: 600;">
-                💡 0.5 = Demi-seconde | 60 = 1 min
-            </small>
-        </div>
-        
-        <div class="input-group">
-            <label>Fond d'écran (Aperçu)</label>
-            <select id="bg-color">
-                <option value="#1e1e1e">Gris Foncé</option>
-                <option value="transparent">Transparent (Export par défaut)</option>
-            </select>
-        </div>
+        try {
+            const sequence = parseSequence();
+            const durationMs = parseFloat(durationInput.value) * 1000; 
+            const mode = dataTypeSelect.value;
+            const easing = easingTypeSelect.value;
 
-        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 15px 0;">
+            if (sequence.length < 2) {
+                alert("⚠️ Veuillez entrer un départ et une arrivée valides.");
+                return;
+            }
 
-        <div class="input-group">
-            <label>Nom du fichier d'export (Optionnel)</label>
-            <input type="text" id="filename" placeholder="Ex: compteur_video">
-        </div>
-        
-        <button id="start-btn">▶ Aperçu</button>
-        <button id="record-btn">🚀 EXPORTER LA VIDÉO (.webm)</button>
-        <p id="progress-text" style="display:none; text-align:center; color:#10b981; font-weight:bold; margin-top:10px;"></p>
-    </div>
+            for (let i = 0; i < sequence.length - 1; i++) {
+                await new Promise(resolve => {
+                    let startTimestamp = null;
+                    const step = (timestamp) => {
+                        if (!startTimestamp) startTimestamp = timestamp;
+                        const progress = Math.min((timestamp - startTimestamp) / durationMs, 1); 
+                        let curve = easing === 'linear' ? progress : (progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress));
+                        formatAndDraw(Math.floor(curve * (sequence[i+1] - sequence[i]) + sequence[i]), mode);
+                        
+                        if (progress < 1) window.requestAnimationFrame(step);
+                        else resolve();
+                    };
+                    window.requestAnimationFrame(step);
+                });
+            }
+        } finally {
+            isProcessing = false;
+        }
+    });
 
-    <div class="counter-container">
-        <canvas id="counter-canvas"></canvas>
-    </div>
+    recordBtn.addEventListener('click', async () => {
+        if (isProcessing) return;
 
-    <script src="script.js"></script>
-</body>
-</html>
+        let customName = filenameInput.value.trim();
+        if (customName === "") customName = `compteur_HD_${Date.now()}`;
+        if (customName.toLowerCase().endsWith('.webm')) customName = customName.slice(0, -5);
+        const finalFilename = `${customName}.webm`;
+
+        let fileStream = null;
+        let useDirectToDisk = false;
+
+        if ('showSaveFilePicker' in window) {
+            try {
+                const fileHandle = await window.showSaveFilePicker({
+                    suggestedName: finalFilename,
+                    types: [{ description: 'Fichier Vidéo WebM', accept: { 'video/webm': ['.webm'] } }]
+                });
+                fileStream = await fileHandle.createWritable();
+                useDirectToDisk = true;
+            } catch (e) { 
+                if (e.name === 'AbortError') return; 
+            }
+        }
+
+        isProcessing = true;
+        startBtn.disabled = true;
+        recordBtn.disabled = true;
+        progressText.style.display = 'block';
+        progressText.innerText = "⏳ Initialisation du rendu HD...";
+        progressText.style.color = "#10b981"; 
+
+        try {
+            if (!window.VideoEncoder || !window.WebMMuxer) {
+                throw new Error("Les outils vidéo ne sont pas chargés.");
+            }
+
+            const sequence = parseSequence();
+            if (sequence.length < 2) throw new Error("Séquence invalide. Il faut au moins 2 valeurs.");
+
+            const formatChoice = exportFormatSelect.value;
+            let forceGreen = (formatChoice === 'green');
+            let useAlpha = !forceGreen;
+
+            let codecConfig = {
+                codec: formatChoice === 'vp9-alpha' ? 'vp09.00.41.08' : 'vp8',
+                width: 1920,
+                height: 1080,
+                framerate: 30,
+                bitrate: 30_000_000
+            };
+
+            if (useAlpha) {
+                codecConfig.alpha = 'keep';
+                try {
+                    let support = await VideoEncoder.isConfigSupported(codecConfig);
+                    if (!support.supported) {
+                        codecConfig.hardwareAcceleration = 'prefer-software';
+                        support = await VideoEncoder.isConfigSupported(codecConfig);
+                        if (!support.supported) {
+                            throw new Error("Transparence non supportée");
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Transparence échouée, passage en Fond Vert.", e);
+                    delete codecConfig.alpha;
+                    delete codecConfig.hardwareAcceleration;
+                    forceGreen = true;
+                    useAlpha = false;
+                }
+            }
+
+            let muxerTarget = useDirectToDisk 
+                ? new WebMMuxer.FileSystemWritableFileStreamTarget(fileStream) 
+                : new WebMMuxer.ArrayBufferTarget();
+
+            const muxer = new WebMMuxer.Muxer({
+                target: muxerTarget,
+                video: { 
+                    codec: codecConfig.codec.startsWith('vp09') ? 'V_VP9' : 'V_VP8', 
+                    width: 1920, 
+                    height: 1080, 
+                    frameRate: 30, 
+                    alpha: useAlpha 
+                }
+            });
+
+            let encoderError = null;
+            const videoEncoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: e => {
+                    console.error("Crash Encodeur:", e);
+                    encoderError = e;
+                }
+            });
+
+            videoEncoder.configure(codecConfig);
+
+            const fps = 30;
+            const durationPerStepInSeconds = parseFloat(durationInput.value);
+            const framesPerStep = Math.floor(durationPerStepInSeconds * fps);
+            const totalFrames = framesPerStep * (sequence.length - 1);
+            let currentGlobalFrame = 0;
+            const mode = dataTypeSelect.value;
+            const easing = easingTypeSelect.value;
+
+            for (let s = 0; s < sequence.length - 1; s++) {
+                const startVal = sequence[s];
+                const endVal = sequence[s+1];
+
+                for (let i = 0; i <= framesPerStep; i++) {
+                    if (encoderError) throw new Error("L'encodage vidéo a crashé.");
+                    if (i === framesPerStep && s < sequence.length - 2) continue;
+
+                    const progress = framesPerStep === 0 ? 1 : i / framesPerStep;
+                    let curveProgress = easing === 'linear' ? progress : (progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress));
+                    const currentVal = Math.floor(curveProgress * (endVal - startVal) + startVal);
+
+                    formatAndDraw(currentVal, mode, forceGreen);
+
+                    const timestampMicro = Math.round((currentGlobalFrame * 1000000) / fps);
+                    
+                    const frame = new VideoFrame(canvas, { 
+                        timestamp: timestampMicro, 
+                        alpha: useAlpha ? 'keep' : 'discard' 
+                    });
+                    
+                    videoEncoder.encode(frame, { keyFrame: currentGlobalFrame % 150 === 0 });
+                    frame.close();
+
+                    currentGlobalFrame++;
+
+                    if (currentGlobalFrame % 30 === 0) {
+                        const percent = Math.round((currentGlobalFrame / totalFrames) * 100);
+                        progressText.innerText = `⏳ Rendu HD en cours : ${percent}% ...`;
+                        
+                        while (videoEncoder.encodeQueueSize > 50) {
+                            await new Promise(r => setTimeout(r, 10));
+                        }
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+            }
+
+            progressText.innerText = `📦 Finalisation du fichier vidéo HD...`;
+            await videoEncoder.flush();
+            muxer.finalize();
+
+            if (useDirectToDisk) {
+                await fileStream.close();
+            } else {
+                const buffer = muxer.target.buffer;
+                const blob = new Blob([buffer], { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = finalFilename; 
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            progressText.innerText = forceGreen 
+                ? `✅ Export réussi (Fond Vert activé) !` 
+                : `✅ Vidéo transparente exportée avec succès !`;
+
+        } catch (err) {
+            console.error(err);
+            progressText.innerText = `❌ Erreur : ${err.message}`;
+            progressText.style.color = "red";
+        } finally {
+            startBtn.disabled = false;
+            recordBtn.disabled = false;
+            isProcessing = false;
+            initCanvas();
+        }
+    });
+});
