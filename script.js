@@ -18,8 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgColorSelect = document.getElementById('bg-color');
     const textColorInput = document.getElementById('text-color');
     const visualEffectSelect = document.getElementById('visual-effect');
-    const exportFormatSelect = document.getElementById('export-format');
-    const filenameInput = document.getElementById('filename');
+    const filenameInput = document.getElementById('filename'); // <-- NOUVEAU
     const startBtn = document.getElementById('start-btn');
     const recordBtn = document.getElementById('record-btn');
     const progressText = document.getElementById('progress-text');
@@ -250,9 +249,15 @@ document.addEventListener('DOMContentLoaded', () => {
     recordBtn.addEventListener('click', async () => {
         if (isProcessing) return;
 
+        // --- GESTION DU NOM DE FICHIER ---
         let customName = filenameInput.value.trim();
-        if (customName === "") customName = `compteur_HD_${Date.now()}`;
-        if (customName.toLowerCase().endsWith('.webm')) customName = customName.slice(0, -5);
+        if (customName === "") {
+            customName = `compteur_HD_${Date.now()}`;
+        }
+        // Si l'utilisateur a déjà écrit ".webm" à la fin, on l'enlève pour éviter les doublons
+        if (customName.toLowerCase().endsWith('.webm')) {
+            customName = customName.slice(0, -5);
+        }
         const finalFilename = `${customName}.webm`;
 
         let fileStream = null;
@@ -261,13 +266,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if ('showSaveFilePicker' in window) {
             try {
                 const fileHandle = await window.showSaveFilePicker({
-                    suggestedName: finalFilename,
+                    suggestedName: finalFilename, // Utilisation du nom personnalisé ici
                     types: [{ description: 'Fichier Vidéo WebM', accept: { 'video/webm': ['.webm'] } }]
                 });
                 fileStream = await fileHandle.createWritable();
                 useDirectToDisk = true;
             } catch (e) { 
                 if (e.name === 'AbortError') return; 
+                console.warn("Échec de la sauvegarde directe, passage en mémoire vive.");
             }
         }
 
@@ -275,37 +281,43 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true;
         recordBtn.disabled = true;
         progressText.style.display = 'block';
+        progressText.innerText = "⏳ Initialisation du rendu HD...";
         progressText.style.color = "#10b981"; 
 
         try {
             if (!window.VideoEncoder || !window.WebMMuxer) {
-                throw new Error("Les outils vidéo ne sont pas chargés.");
+                throw new Error("Les outils vidéo ne sont pas chargés. Vérifiez votre connexion.");
             }
 
             const sequence = parseSequence();
             if (sequence.length < 2) throw new Error("Séquence invalide. Il faut au moins 2 valeurs.");
 
-            const formatChoice = exportFormatSelect.value;
-
-            const forceGreen = (formatChoice === 'green');
-            const useAlpha = (formatChoice === 'vp9-alpha' || formatChoice === 'vp8-alpha');
-            const isVP9 = (formatChoice === 'vp9-alpha');
-
-            progressText.innerText = forceGreen 
-                ? "⏳ Initialisation export Fond Vert..." 
-                : `⏳ Initialisation export ${isVP9 ? 'VP9' : 'VP8'} Transparent...`;
-
             let codecConfig = {
-                codec: isVP9 ? 'vp09.00.41.08' : 'vp8',
+                codec: 'vp09.00.41.08',
                 width: 1920,
                 height: 1080,
                 framerate: 30,
-                bitrate: 30_000_000
+                bitrate: 30_000_000, 
+                alpha: 'keep'
             };
 
-            if (useAlpha) {
-                codecConfig.alpha = 'keep';
-                codecConfig.hardwareAcceleration = 'prefer-software';
+            let useAlpha = false;
+            try {
+                const support = await VideoEncoder.isConfigSupported(codecConfig);
+                useAlpha = support.supported; 
+            } catch (e) {
+                codecConfig.codec = 'vp8';
+                const support = await VideoEncoder.isConfigSupported(codecConfig);
+                useAlpha = support.supported;
+            }
+
+            let forceGreen = false;
+            if (!useAlpha && bgColorSelect.value === 'transparent') {
+                progressText.innerText = "⚠️ Transparence HD non supportée par le PC, passage en Fond Vert...";
+                delete codecConfig.alpha; 
+                forceGreen = true;
+            } else if (!useAlpha) {
+                delete codecConfig.alpha;
             }
 
             let muxerTarget = useDirectToDisk 
@@ -314,16 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const muxer = new WebMMuxer.Muxer({
                 target: muxerTarget,
-                video: { 
-                    codec: isVP9 ? 'V_VP9' : 'V_VP8', 
-                    width: 1920, 
-                    height: 1080, 
-                    frameRate: 30, 
-                    alpha: useAlpha 
-                }
+                video: { codec: codecConfig.codec === 'vp8' ? 'V_VP8' : 'V_VP9', width: 1920, height: 1080, frameRate: 30, alpha: useAlpha }
             });
 
             let encoderError = null;
+
             const videoEncoder = new VideoEncoder({
                 output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
                 error: e => {
@@ -347,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const endVal = sequence[s+1];
 
                 for (let i = 0; i <= framesPerStep; i++) {
-                    if (encoderError) throw new Error("L'encodeur vidéo a crashé : " + encoderError.message);
+                    if (encoderError) throw new Error("L'encodage vidéo a crashé.");
                     if (i === framesPerStep && s < sequence.length - 2) continue;
 
                     const progress = framesPerStep === 0 ? 1 : i / framesPerStep;
@@ -392,14 +399,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = finalFilename; 
+                a.download = finalFilename; // Utilisation du nom personnalisé ici aussi
                 a.click();
                 URL.revokeObjectURL(url);
             }
 
             progressText.innerText = forceGreen 
-                ? `✅ Export réussi (Fond Vert Intentionnel) !` 
-                : `✅ Vidéo ${isVP9 ? 'VP9' : 'VP8'} transparente exportée avec succès !`;
+                ? `✅ Export HD réussi (Fond Vert activé) !` 
+                : `✅ Vidéo HD transparente exportée !`;
 
         } catch (err) {
             console.error(err);
