@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compteur Dynamique Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/webm-muxer@5.0.2/build/webm-muxer.js"></script>
+</head>
+<body>
+    <div id="controls" class="panel">
+        <h2>⚙️ Paramètres</h2>
+        
+        <div class="input-group">
+            <label>Que veux-tu animer ?</label>
+            <select id="data-type">
+                <option value="numbers">Nombres (ex: 0 à 200 000)</option>
+                <option value="dates">Dates & Heures</option>
+            </select>
+        </div>
+
+        <div class="input-group" id="format-group" style="display: none;">
+            <label>Affichage de la date</label>
+            <select id="date-format">
+                <option value="fr-time-below">Heure en dessous (JJ/MM/AAAA)</option>
+                <option value="fr-inline">Heure sur la même ligne</option>
+                <option value="fr-only">Date uniquement (Sans l'heure)</option>
+                <option value="en-long">Date en Anglais (21 January 2018)</option>
+            </select>
+        </div>
+
+        <div class="input-group checkbox-group" id="seconds-group" style="display: none;">
+            <label>
+                <input type="checkbox" id="show-seconds" checked> 
+                Afficher les secondes (ex: 15:30:45)
+            </label>
+        </div>
+
+        <div class="input-group">
+            <label>Départ et Arrivée (séparés par une virgule)</label>
+            <input type="text" id="sequence" value="0, 200000">
+            <small id="sequence-hint" class="hint-text">Ex: 0, 150, 300</small>
+        </div>
+
+        <div class="input-group" style="flex-direction: row; justify-content: space-between; gap: 10px;">
+            <div style="flex: 1;">
+                <label>Couleur</label>
+                <input type="color" id="text-color" value="#ffffff" style="width: 100%; height: 38px; padding: 2px; cursor: pointer;">
+            </div>
+            <div style="flex: 2;">
+                <label>Effet visuel</label>
+                <select id="visual-effect">
+                    <option value="shadow">Ombre douce (Standard)</option>
+                    <option value="arch">Courbure en Arche (Pont)</option>
+                    <option value="arch-inv">Courbure Inversée (Sourire)</option>
+                    <option value="skew">Inclinaison (Vitesse)</option>
+                    <option value="neon">Lueur Néon (Glow)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Style de défilement</label>
+            <select id="easing-type">
+                <option value="easeOut">Amorti (Ralentit à la fin)</option>
+                <option value="linear">Linéaire (Vitesse constante)</option>
+            </select>
+        </div>
+        
+        <div class="input-group">
+            <label id="duration-label">Durée entre chaque étape (en secondes)</label>
+            <input type="number" id="duration" value="2" step="any" min="0.01">
+            <small class="hint-text" style="color: #60a5fa; font-weight: 600;">
+                💡 0.5 = Demi-seconde | 60 = 1 min
+            </small>
+        </div>
+        
+        <div class="input-group">
+            <label>Fond d'écran (Aperçu)</label>
+            <select id="bg-color">
+                <option value="#1e1e1e">Gris Foncé</option>
+                <option value="transparent">Transparent (Export par défaut)</option>
+            </select>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 15px 0;">
+
+        <div class="input-group">
+            <label>Nom du fichier d'export (Optionnel)</label>
+            <input type="text" id="filename" placeholder="Ex: compteur_video">
+        </div>
+        
+        <button id="start-btn">▶ Aperçu</button>
+        <button id="record-btn">🚀 EXPORTER LA VIDÉO (.webm)</button>
+        <p id="progress-text" style="display:none; text-align:center; color:#10b981; font-weight:bold; margin-top:10px;"></p>
+    </div>
+
+    <div class="counter-container">
+        <canvas id="counter-canvas"></canvas>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&family=Inter:wght@400;600&display=swap');
+
+body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    background-color: #1e1e1e;
+    transition: background-color 0.3s ease;
+    overflow: hidden;
+}
+
+.panel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    padding: 25px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    width: 320px;
+    z-index: 10;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transition: opacity 0.3s, visibility 0.3s, transform 0.3s;
+}
+
+.panel.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-20px);
+}
+
+.panel h2 {
+    margin-top: 0;
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+}
+
+.input-group {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.checkbox-group {
+    flex-direction: row;
+    align-items: center;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.checkbox-group input {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+label {
+    font-size: 0.85rem;
+    margin-bottom: 5px;
+    color: #e2e8f0;
+}
+
+.hint-text {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+input, select {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255, 255, 255, 0.9);
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: background 0.2s, transform 0.1s;
+}
+
+button:active { transform: scale(0.98); }
+
+#start-btn { background: #3b82f6; color: white; }
+#start-btn:hover { background: #2563eb; }
+
+#record-btn { background: #ef4444; color: white; }
+#record-btn:hover { background: #dc2626; }
+
+#toggle-ui-btn { background: #4b5563; color: white; }
+#toggle-ui-btn:hover { background: #374151; }
+
+.hint {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 15px;
+    margin-bottom: 0;
+}
+
+/* Conteneur et affichage fluide du Canvas */
+.counter-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    box-sizing: border-box;
+}
+
+#counter-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
